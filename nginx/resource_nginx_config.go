@@ -4,90 +4,141 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/schema"
-	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 )
 
-type NginxConfigResource struct{}
-
-func NewNginxConfigResource() resource.Resource {
-	return &NginxConfigResource{}
-}
-
-type NginxConfigModel struct {
-	ID         types.String `tfsdk:"id"`
-	ServerName types.String `tfsdk:"server_name"`
-	ListenPort types.Int64  `tfsdk:"listen_port"`
-	Root       types.String `tfsdk:"root"`
-	Upstreams  types.List   `tfsdk:"upstreams"`
-	ConfigPath types.String `tfsdk:"config_path"`
-}
-
-func (r *NginxConfigResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = "nginx_config"
-}
-
-func (r *NginxConfigResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	resp.Schema = schema.Schema{
-		Attributes: map[string]schema.Attribute{
-			"server_name": schema.StringAttribute{
+func resourceNginxConfig() *schema.Resource {
+	return &schema.Resource{
+		CreateContext: createConfig,
+		ReadContext:   readConfig,
+		UpdateContext: updateConfig,
+		DeleteContext: deleteConfig,
+		Schema: map[string]*schema.Schema{
+			"server_name": {
+				Type:         schema.TypeString,
+				Required:     true,
+				Description:  "The server name for the NGINX configuration.",
+				ValidateFunc: validation.StringIsNotEmpty,
+			},
+			"listen_port": {
+				Type:        schema.TypeInt,
 				Required:    true,
-				Description: "The server name for the NGINX config.",
+				Description: "The port number to listen on.",
 			},
-			"listen_port": schema.Int64Attribute{
+			"root": {
+				Type:        schema.TypeString,
 				Required:    true,
-				Description: "Port to listen on.",
+				Description: "The root directory for the NGINX server.",
 			},
-			"root": schema.StringAttribute{
-				Required:    true,
-				Description: "Root directory for the server.",
-			},
-			"upstreams": schema.ListAttribute{
-				ElementType: types.StringType,
-				Optional:    true,
-				Description: "List of upstream servers for load balancing.",
-			},
-			"config_path": schema.StringAttribute{
+			"config_path": {
+				Type:        schema.TypeString,
 				Computed:    true,
-				Description: "Path to the generated NGINX configuration file.",
+				Description: "The path to the generated NGINX configuration file.",
 			},
+		},
+		Importer: &schema.ResourceImporter{
+			StateContext: schema.ImportStatePassthroughContext,
 		},
 	}
 }
 
-func (r *NginxConfigResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var data NginxConfigModel
-	diags := req.Plan.Get(ctx, &data)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+func createConfig(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
+	// Retrieve input values
+	serverName := d.Get("server_name").(string)
+	listenPort := d.Get("listen_port").(int)
+	root := d.Get("root").(string)
 
+	// Generate NGINX configuration content
 	configContent := fmt.Sprintf(`
 server {
     listen %d;
     server_name %s;
-    
+
     root %s;
     index index.html;
 
     location / {
         try_files $uri $uri/ =404;
     }
-}`, data.ListenPort.ValueInt64(), data.ServerName.ValueString(), data.Root.ValueString())
+}`, listenPort, serverName, root)
 
-	// Placeholder: Implement SSH connection and write the file
-	remotePath := fmt.Sprintf("/etc/nginx/sites-available/%s.conf", data.ServerName.ValueString())
-	err := uploadConfig(data.Host.ValueString(), data.User.ValueString(), data.Password.ValueString(), remotePath, configContent)
+	// Define remote config path
+	configPath := fmt.Sprintf("/etc/nginx/sites-available/%s.conf", serverName)
+
+	// Placeholder: Replace with actual logic to write the file via SSH
+	err := uploadConfig(configPath, configContent)
 	if err != nil {
-		resp.Diagnostics.AddError("Failed to create config", err.Error())
-		return
+		return diag.FromErr(fmt.Errorf("failed to upload NGINX config: %s", err))
 	}
 
-	data.ConfigPath = types.StringValue(remotePath)
-	data.ID = types.StringValue(data.ServerName.ValueString())
-	resp.State.Set(ctx, &data)
+	// Set resource ID and other attributes
+	d.SetId(serverName)
+	_ = d.Set("config_path", configPath)
+
+	return nil
 }
 
-// Implement Read, Update, and Delete methods similarly.
+func readConfig(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
+	// Retrieve config path
+	configPath := d.Get("config_path").(string)
+
+	// Placeholder: Replace with actual logic to read the file via SSH
+	exists, err := configExists(configPath)
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("failed to check if NGINX config exists: %s", err))
+	}
+
+	if !exists {
+		// If config doesn't exist, remove from state
+		d.SetId("")
+		return nil
+	}
+
+	// Update state with current values
+	return nil
+}
+
+func updateConfig(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
+	if d.HasChanges("server_name", "listen_port", "root") {
+		// Recreate the configuration file
+		return createConfig(ctx, d, meta)
+	}
+	return nil
+}
+
+func deleteConfig(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
+	// Retrieve config path
+	configPath := d.Get("config_path").(string)
+
+	// Placeholder: Replace with actual logic to delete the file via SSH
+	err := deleteConfigFile(configPath)
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("failed to delete NGINX config: %s", err))
+	}
+
+	d.SetId("")
+	return nil
+}
+
+// Placeholder function to upload NGINX configuration via SSH
+func uploadConfig(path, content string) error {
+	// Implement your logic to connect to the server and upload the configuration
+	fmt.Printf("Uploading config to %s:\n%s\n", path, content)
+	return nil
+}
+
+// Placeholder function to check if a configuration file exists via SSH
+func configExists(path string) (bool, error) {
+	// Implement your logic to connect to the server and verify if the file exists
+	fmt.Printf("Checking if config exists at %s\n", path)
+	return true, nil
+}
+
+// Placeholder function to delete a configuration file via SSH
+func deleteConfigFile(path string) error {
+	// Implement your logic to connect to the server and delete the configuration
+	fmt.Printf("Deleting config at %s\n", path)
+	return nil
+}

@@ -2,13 +2,28 @@ package main
 
 import (
 	"context"
-	"terraform-provider-nginx/nginx"
+	"flag"
+	"log"
 
-	"github.com/hashicorp/terraform-plugin-framework/providerserver"
-	"github.com/integralist/terraform-provider-mock/mock"
+	"github.com/DBBSTech/terraform-provider-nginx/nginx"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/plugin"
 )
 
 func main() {
-	providerserver.Serve(context.Background(), nginx.New, providerserver.ServeOpts{})
-	ProviderFunc: mock.Provider,
+	var debugMode bool
+
+	flag.BoolVar(&debugMode, "debuggable", false, "set to true to run the provider with support for debuggers like delve")
+	flag.Parse()
+
+	opts := &plugin.ServeOpts{ProviderFunc: nginx.Provider}
+
+	if debugMode {
+		err := plugin.Debug(context.Background(), "github.com/DBBSTech/terraform-provider-nginx", opts) //nolint:staticcheck
+		if err != nil {
+			log.Println(err.Error())
+		}
+		return
+	}
+
+	plugin.Serve(opts)
 }

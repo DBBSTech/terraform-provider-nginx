@@ -1,57 +1,35 @@
 package nginx
 
 import (
-	"context"
-
-	"github.com/hashicorp/terraform-plugin-framework/datasource"
-	"github.com/hashicorp/terraform-plugin-framework/provider"
-	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
-type NginxProvider struct{}
-
-type NginxProviderModel struct {
-	Host     types.String `tfsdk:"host"`
-	User     types.String `tfsdk:"user"`
-	Password types.String `tfsdk:"password"`
-}
-
-func New() provider.Provider {
-	return &NginxProvider{}
-}
-
-func (p *NginxProvider) Metadata(_ context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
-	resp.TypeName = "nginx"
-}
-
-func (p *NginxProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
-	resp.Schema = map[string]schema.Attribute{
-		"host": {
-			Type:        types.StringType,
-			Required:    true,
-			Description: "IP or hostname of the Debian host.",
+func Provider() *schema.Provider {
+	return &schema.Provider{
+		Schema: map[string]*schema.Schema{
+			"host": {
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "The hostname or IP address of the NGINX server.",
+				DefaultFunc: schema.EnvDefaultFunc("NGINX_HOST", nil),
+			},
+			"user": {
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "The SSH username to connect to the NGINX server.",
+				DefaultFunc: schema.EnvDefaultFunc("NGINX_USER", nil),
+			},
+			"password": {
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "The SSH password to connect to the NGINX server.",
+				DefaultFunc: schema.EnvDefaultFunc("NGINX_PASSWORD", nil),
+				Sensitive:   true,
+			},
 		},
-		"user": {
-			Type:        types.StringType,
-			Required:    true,
-			Description: "SSH username for the Debian host.",
+		ResourcesMap: map[string]*schema.Resource{
+			"nginx_config": resourceNginxConfig(),
 		},
-		"password": {
-			Type:        types.StringType,
-			Required:    true,
-			Sensitive:   true,
-			Description: "SSH password for the Debian host.",
-		},
+		ConfigureContextFunc: configureClient,
 	}
-}
-
-func (p *NginxProvider) Resources(_ context.Context) []func() resource.Resource {
-	return []func() resource.Resource{
-		NewNginxConfigResource,
-	}
-}
-
-func (p *NginxProvider) DataSources(_ context.Context) []func() datasource.DataSource {
-	return nil
 }
