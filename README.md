@@ -1,72 +1,64 @@
-# FusionAuth Provider
+# Terraform Provider Scaffolding (Terraform Plugin Framework)
 
-This provider is used for setting up [FusionAuth](https://fusionauth.io).
+_This template repository is built on the [Terraform Plugin Framework](https://github.com/hashicorp/terraform-plugin-framework). The template repository built on the [Terraform Plugin SDK](https://github.com/hashicorp/terraform-plugin-sdk) can be found at [terraform-provider-scaffolding](https://github.com/hashicorp/terraform-provider-scaffolding). See [Which SDK Should I Use?](https://developer.hashicorp.com/terraform/plugin/framework-benefits) in the Terraform documentation for additional information._
 
-For the rendered provider usage documentation, visit the [Terraform Registry](https://registry.terraform.io/providers/gpsinsight/fusionauth/latest/docs).
+This repository is a *template* for a [Terraform](https://www.terraform.io) provider. It is intended as a starting point for creating Terraform providers, containing:
 
-## Please Read 
+- A resource and a data source (`internal/provider/`),
+- Examples (`examples/`) and generated documentation (`docs/`),
+- Miscellaneous meta files.
 
-November 16th, 2023
-This Terraform Provider has moved to the [FusionAuth](https://github.com/FusionAuth) organization.
+These files contain boilerplate code that you will need to edit to create your own Terraform provider. Tutorials for creating Terraform providers can be found on the [HashiCorp Developer](https://developer.hashicorp.com/terraform/tutorials/providers-plugin-framework) platform. _Terraform Plugin Framework specific guides are titled accordingly._
 
-FusionAuth would like to thank [GPS Insight](https://github.com/gpsinsight) for all of their efforts to build and maintain this provider for the past three years!
+Please see the [GitHub template repository documentation](https://help.github.com/en/github/creating-cloning-and-archiving-repositories/creating-a-repository-from-a-template) for how to create a new repository from this template on GitHub.
 
-The purpose of this change in ownership is to allow FusionAuth to be in a better position to manage pull requests, and work towards full parity with the FusionAuth API. 
+Once you've written your provider, you'll want to [publish it on the Terraform Registry](https://developer.hashicorp.com/terraform/registry/providers/publishing) so that others can use it.
 
-Please continue to use and provide feedback on this provider as you have in the past, we are happy to accept pull requests.
+## Requirements
 
-## Argument Reference
+- [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.0
+- [Go](https://golang.org/doc/install) >= 1.22
 
-* `api_key` - (Required) The API Key for the FusionAuth instance
-* `host` - (Required) Host for FusionAuth instance
+## Building The Provider
 
-## Resources Available
+1. Clone the repository
+1. Enter the repository directory
+1. Build the provider using the Go `install` command:
 
-* API Key
-* application
-* application/{application_id}/role
-* email
-* entity
-* entity grant
-* entity type
-* entity type permission
-* form
-* form field
-* group
-* generic connector
-* key
-* imported key
-* lambda
-* identity provider
-    - OpenID Connect
-    - Google
-    - Apple
-    - External JWT
-    - Facebook
-    - SAML v2
-    - Sony PSN
-    - Steam
-    - Twitch
-    - Xbox
-* themes
-* user
-* user action
-* webhook
-* tenants
-
-## Testing
-
-Please add tests to the relevant files.
-
-To run tests:
-
-```
-cd fusionauth
-go test
+```shell
+go install
 ```
 
-## Known issues
+## Adding Dependencies
 
-If you do not specify permissions when adding an API key, you will get a key created that has no permissions. See the following issues for more details.
-- https://github.com/gpsinsight/terraform-provider-fusionauth/issues/126
-- https://github.com/FusionAuth/fusionauth-issues/issues/1675
+This provider uses [Go modules](https://github.com/golang/go/wiki/Modules).
+Please see the Go documentation for the most up to date information about using Go modules.
+
+To add a new dependency `github.com/author/dependency` to your Terraform provider:
+
+```shell
+go get github.com/author/dependency
+go mod tidy
+```
+
+Then commit the changes to `go.mod` and `go.sum`.
+
+## Using the provider
+
+Fill this in for each provider
+
+## Developing the Provider
+
+If you wish to work on the provider, you'll first need [Go](http://www.golang.org) installed on your machine (see [Requirements](#requirements) above).
+
+To compile the provider, run `go install`. This will build the provider and put the provider binary in the `$GOPATH/bin` directory.
+
+To generate or update documentation, run `make generate`.
+
+In order to run the full suite of Acceptance tests, run `make testacc`.
+
+*Note:* Acceptance tests create real resources, and often cost money to run.
+
+```shell
+make testacc
+```

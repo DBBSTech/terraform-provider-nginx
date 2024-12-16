@@ -1,41 +1,27 @@
-run:
-  timeout: 90s
+# Visit https://golangci-lint.run/ for usage documentation
+# and information on other useful linters
+issues:
+  max-per-linter: 0
+  max-same-issues: 0
+
 linters:
   disable-all: true
   enable:
-    - bodyclose
-    - dogsled
+    - durationcheck
     - errcheck
-    - gochecknoglobals
-    - gochecknoinits
-    - gocognit
-    - goconst
-    - gocritic
-    - gocyclo
+    - copyloopvar
+    - forcetypeassert
+    - godot
     - gofmt
-    - goimports
-    - revive
-    - gosec
     - gosimple
-    - govet
     - ineffassign
+    - makezero
     - misspell
-    - nakedret
-    - prealloc
+    - nilerr
     - predeclared
-    - exportloopref
     - staticcheck
-    - stylecheck
-    - typecheck
+    - tenv
     - unconvert
     - unparam
     - unused
-    - whitespace
-issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - lll
-        - funlen
-        - gochecknoinits
-        - gochecknoglobals
+    - govet
