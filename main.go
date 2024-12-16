@@ -5,7 +5,7 @@ import (
 	"flag"
 	"log"
 
-	"github.com/DBBSTech/terraform-provider-nginx/nginx"
+	"github.com/gpsinsight/terraform-provider-fusionauth/fusionauth"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/plugin"
 )
 
@@ -15,10 +15,10 @@ func main() {
 	flag.BoolVar(&debugMode, "debuggable", false, "set to true to run the provider with support for debuggers like delve")
 	flag.Parse()
 
-	opts := &plugin.ServeOpts{ProviderFunc: nginx.Provider}
+	opts := &plugin.ServeOpts{ProviderFunc: fusionauth.Provider}
 
 	if debugMode {
-		err := plugin.Debug(context.Background(), "github.com/DBBSTech/terraform-provider-nginx", opts) //nolint:staticcheck
+		err := plugin.Debug(context.Background(), "registry.terraform.io/gpsinsight/fusionauth", opts) //nolint:staticcheck
 		if err != nil {
 			log.Println(err.Error())
 		}
