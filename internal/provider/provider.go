@@ -6,6 +6,7 @@ package nginx
 import (
 	"context"
 	"os"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -37,7 +38,7 @@ type NginxProviderModel struct {
 }
 
 func (p *NginxProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
-	resp.TypeName = "Nginx"
+	resp.TypeName = "nginx"
 	resp.Version = p.version
 }
 
@@ -57,24 +58,6 @@ func (p *NginxProvider) Schema(_ context.Context, req provider.SchemaRequest, re
 		},
 	}
 }
-
-// func (p *NginxProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
-// 	var data NginxProviderModel
-
-// 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
-
-// 	if resp.Diagnostics.HasError() {
-// 		return
-// 	}
-
-// 	// Configuration values are now available.
-// 	// if data.Endpoint.IsNull() { /* ... */ }
-
-// 	// Example client configuration for data sources and resources
-// 	client := http.DefaultClient
-// 	resp.DataSourceData = client
-// 	resp.ResourceData = client
-// }
 
 func (p *NginxProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
 	// Retrieve provider data from configuration
@@ -161,7 +144,10 @@ func (p *NginxProvider) Configure(ctx context.Context, req provider.ConfigureReq
 
 func (p *NginxProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
+		NewConfigResource,
 		NewSiteResource,
+		NewAPIResource,
+		NewProxyResource,
 	}
 }
 
@@ -177,4 +163,8 @@ func New(version string) func() provider.Provider {
 			version: version,
 		}
 	}
+}
+
+func shellEscape(input string) string {
+	return strings.ReplaceAll(input, "'", "'\"'\"'")
 }

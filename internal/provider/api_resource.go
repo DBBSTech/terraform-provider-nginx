@@ -1,6 +1,7 @@
 package nginx
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"strings"
@@ -16,40 +17,40 @@ import (
 )
 
 // Ensure provider defined types fully satisfy framework interfaces.
-var _ resource.Resource = &SiteResource{}
-var _ resource.ResourceWithImportState = &SiteResource{}
+var _ resource.Resource = &APIResource{}
+var _ resource.ResourceWithImportState = &APIResource{}
 
-func NewSiteResource() resource.Resource {
-	return &SiteResource{}
+func NewAPIResource() resource.Resource {
+	return &APIResource{}
 }
 
-// SiteResource defines the resource implementation.
-type SiteResource struct {
+// APIResource defines the resource implementation.
+type APIResource struct {
 	client interface{} // Use interface{} to accept SSH client passed from provider.go
 }
 
-// SiteResourceModel describes the resource data model.
-type SiteResourceModel struct {
+// APIResourceModel describes the resource data model.
+type APIResourceModel struct {
 	ServerName types.String `tfsdk:"server_name"`
 	ListenPort types.Int64  `tfsdk:"listen_port"`
 	Root       types.String `tfsdk:"root"`
 	Path       types.String `tfsdk:"path"`
 	Content    types.String `tfsdk:"content"`
 	Id         types.String `tfsdk:"id"`
-	SiteName   types.String `tfsdk:"site_name"`
+	APIName    types.String `tfsdk:"api_name"`
 }
 
-func (r *SiteResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_site"
+func (r *APIResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_api" // Changed to lowercase "_api"
 }
 
-func (r *SiteResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *APIResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Site resource",
+		MarkdownDescription: "API resource",
 
 		Attributes: map[string]schema.Attribute{
-			"site_name": schema.StringAttribute{
-				MarkdownDescription: "A unique name for the site resource.",
+			"api_name": schema.StringAttribute{
+				MarkdownDescription: "A unique name for the API resource.",
 				Required:            true, // User must define it
 			},
 			"server_name": schema.StringAttribute{
@@ -57,28 +58,25 @@ func (r *SiteResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 				Optional:            true,
 			},
 			"listen_port": schema.Int64Attribute{
-				MarkdownDescription: "The port the site listens on.",
+				MarkdownDescription: "The port the API listens on.",
 				Optional:            true,
 			},
 			"root": schema.StringAttribute{
-				MarkdownDescription: "The root directory of the site.",
+				MarkdownDescription: "The root directory of the API.",
 				Optional:            true,
 			},
 			"path": schema.StringAttribute{
-				MarkdownDescription: "The path of the site configuration file.",
+				MarkdownDescription: "The path of the API configuration file.",
 				Optional:            true,
 			},
 			"content": schema.StringAttribute{
-				MarkdownDescription: "The content of the site.",
+				MarkdownDescription: "The content of the API.",
 				Computed:            true,
 				Optional:            true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(), // Trigger replacement if it changes
-				},
 			},
 			"id": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: "The ID of the site resource.",
+				MarkdownDescription: "The ID of the API resource.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -87,7 +85,7 @@ func (r *SiteResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 	}
 }
 
-func (r *SiteResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+func (r *APIResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	// Use the SSH client passed from the provider
 	if req.ProviderData == nil {
 		return
@@ -106,8 +104,8 @@ func (r *SiteResource) Configure(ctx context.Context, req resource.ConfigureRequ
 	r.client = client
 }
 
-func (r *SiteResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var data SiteResourceModel
+func (r *APIResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var data APIResourceModel
 
 	// Retrieve the plan data
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
@@ -152,8 +150,8 @@ func (r *SiteResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	// Set the resource ID to the site_name
-	data.Id = types.StringValue(data.SiteName.ValueString())
+	// Set the resource ID to the API_name
+	data.Id = types.StringValue(data.APIName.ValueString())
 
 	// Explicitly set the content
 	data.Content = types.StringValue(configContent)
@@ -164,19 +162,19 @@ func (r *SiteResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	tflog.Trace(ctx, fmt.Sprintf("Created site resource: %s", data.SiteName.ValueString()))
+	tflog.Trace(ctx, fmt.Sprintf("Created API resource: %s", data.APIName.ValueString()))
 }
 
-func (r *SiteResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var data SiteResourceModel
+func (r *APIResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var data APIResourceModel
 
-	// Get the current state from Terraform
+	// Retrieve the current state
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Connect to the SSH server
+	// Use SSH client to verify the file existence and retrieve its content
 	sshClient := r.client.(*ssh.Client)
 	session, err := sshClient.NewSession()
 	if err != nil {
@@ -188,47 +186,61 @@ func (r *SiteResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 	}
 	defer session.Close()
 
-	// Build the command to read the remote file
-	command := fmt.Sprintf("if [ -f %s ]; then cat %s; else echo 'NOT_FOUND'; fi", data.Path.ValueString(), data.Path.ValueString())
-
-	// Execute the command
-	output, err := session.Output(command)
+	// Command to check file existence and read content
+	checkCommand := fmt.Sprintf("if [ -f %s ]; then cat %s; else echo 'NOT_FOUND'; fi", data.Path.ValueString(), data.Path.ValueString())
+	stdout, err := session.StdoutPipe()
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Command Execution Error",
-			fmt.Sprintf("Failed to execute command '%s': %s", command, err),
+			"SSH Pipe Error",
+			fmt.Sprintf("Failed to create stdout pipe: %s", err),
 		)
 		return
 	}
 
-	// Handle missing file case
-	if strings.TrimSpace(string(output)) == "NOT_FOUND" {
+	if err := session.Start(checkCommand); err != nil {
+		resp.Diagnostics.AddError(
+			"SSH Command Execution Error",
+			fmt.Sprintf("Failed to execute command: %s", err),
+		)
+		return
+	}
+
+	// Read the command output
+	var result strings.Builder
+	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
+		result.WriteString(scanner.Text() + "\n")
+	}
+
+	if err := session.Wait(); err != nil {
+		resp.Diagnostics.AddError(
+			"SSH Command Error",
+			fmt.Sprintf("Failed to complete command: %s", err),
+		)
+		return
+	}
+
+	// Handle 'NOT_FOUND' scenario
+	if strings.TrimSpace(result.String()) == "NOT_FOUND" {
 		resp.Diagnostics.AddWarning(
-			"Resource Not Found",
-			fmt.Sprintf("The file at path '%s' does not exist. Terraform will remove it from the state.", data.Path.ValueString()),
+			"File Not Found",
+			fmt.Sprintf("The file at path '%s' does not exist.", data.Path.ValueString()),
 		)
-		resp.State.RemoveResource(ctx) // Remove the resource from the state
-		return
+		data.Content = types.StringNull()
+	} else {
+		data.Content = types.StringValue(result.String())
 	}
 
-	// Update the content field in the state
-	data.Content = types.StringValue(string(output))
+	// Ensure the ID remains consistent
+	data.Id = types.StringValue(data.APIName.ValueString())
 
-	// Save the updated state back to Terraform
+	// Save the updated state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	tflog.Debug(ctx, "Successfully read nginx_site resource state", map[string]interface{}{
-		"path":    data.Path.ValueString(),
-		"content": data.Content.ValueString(),
-	})
 }
 
-func (r *SiteResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan SiteResourceModel
-	var state SiteResourceModel
+func (r *APIResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan APIResourceModel
+	var state APIResourceModel
 
 	// Retrieve the updated plan data
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -278,8 +290,8 @@ func (r *SiteResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		return
 	}
 
-	// Set the resource ID to the stable site_name
-	plan.Id = types.StringValue(plan.SiteName.ValueString())
+	// Set the resource ID to the stable API_name
+	plan.Id = types.StringValue(plan.APIName.ValueString())
 
 	// Set the content to the updated configuration
 	plan.Content = types.StringValue(updatedConfig)
@@ -290,11 +302,11 @@ func (r *SiteResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		return
 	}
 
-	tflog.Trace(ctx, fmt.Sprintf("Updated site resource: %s", plan.SiteName.ValueString()))
+	tflog.Trace(ctx, fmt.Sprintf("Updated API resource: %s", plan.APIName.ValueString()))
 }
 
-func (r *SiteResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var data SiteResourceModel
+func (r *APIResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var data APIResourceModel
 
 	// Read Terraform prior state data into the model
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
@@ -302,7 +314,7 @@ func (r *SiteResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 		return
 	}
 
-	// Use SSH to delete the site config file
+	// Use SSH to delete the configuration file
 	sshClient := r.client.(*ssh.Client)
 	session, err := sshClient.NewSession()
 	if err != nil {
@@ -323,24 +335,21 @@ func (r *SiteResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 		return
 	}
 
-	tflog.Trace(ctx, fmt.Sprintf("Deleted site resource: %s", data.SiteName.ValueString()))
+	tflog.Trace(ctx, fmt.Sprintf("Deleted API resource: %s", data.APIName.ValueString()))
 }
 
-func (r *SiteResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *APIResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	// Import by path or name
 	idParts := strings.Split(req.ID, ":")
 	if len(idParts) != 2 {
 		resp.Diagnostics.AddError(
 			"Invalid Import ID",
-			"Expected import ID in format 'site_name:path'",
+			"Expected import ID in format 'api_name:path'",
 		)
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("site_name"), idParts[0])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("api_name"), idParts[0])...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("path"), idParts[1])...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), idParts[0])...)
-
-	// Read the existing configuration to populate other attributes
-	// This would require additional code to parse the NGINX config
 }
